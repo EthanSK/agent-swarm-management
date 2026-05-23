@@ -16,9 +16,22 @@ struct SettingsView: View {
                 Text("Phase 3 will replace the stub with a localhost HTTP endpoint and MCP wrapper.")
                     .foregroundStyle(.secondary)
             }
+
+            Section("Local cache") {
+                Text(store.persistenceURL.path)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+
+                if let error = store.lastPersistenceError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                } else {
+                    Label("Saved locally as JSON", systemImage: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .padding()
         .frame(width: 560)
     }
 }
-

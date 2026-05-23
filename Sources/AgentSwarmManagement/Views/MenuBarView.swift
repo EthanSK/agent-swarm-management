@@ -33,9 +33,14 @@ struct MenuBarView: View {
             Label(controlServer.statusLine, systemImage: controlServer.isRunning ? "network" : "wifi.slash")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            if let error = store.lastPersistenceError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
         .padding()
         .frame(width: 320)
     }
 }
-

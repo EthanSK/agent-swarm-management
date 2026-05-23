@@ -325,6 +325,12 @@ Setup flow:
 - Local JSON persistence.
 - Manual create/edit/complete.
 
+Status as of 2026-05-24:
+
+- Implemented the first local-only slice.
+- The app seeds recovered sample data, persists to `~/Library/Application Support/AgentSwarmManagement/workspace.json`, and exposes manual create/edit/delete flows for projects, agents, tasks, and follow-ups.
+- Tasks and follow-ups have context-menu status updates; project counters are recomputed from local records.
+
 ### Phase 2: Notion integration
 
 - Token onboarding via Keychain.
@@ -372,4 +378,3 @@ Setup flow:
 - Make Follow-ups a top-level view.
 - Avoid public OAuth until there is a tiny broker.
 - Keep every hook failure non-blocking for the main agent run.
-
