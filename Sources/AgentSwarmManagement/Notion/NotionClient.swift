@@ -258,8 +258,9 @@ actor NotionClient {
             guard let projectId = UUID(uuidString: richText(properties, "Project ID")) else {
                 return nil
             }
-            let question = richText(properties, "Question").emptyToNil
-                ?? title(properties, "Name")
+            let questionText = richText(properties, "Question")
+            let fallbackTitle = title(properties, "Name")
+            let question = questionText.emptyToNil ?? fallbackTitle
 
             return FollowUp(
                 id: localId(from: page, properties: properties),
