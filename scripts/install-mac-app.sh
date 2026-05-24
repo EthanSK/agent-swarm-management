@@ -15,7 +15,18 @@ if [ ! -d "$source_app" ]; then
 fi
 
 if [ -d "$target_app" ]; then
-  osascript -e 'tell application "Agent Swarm Management" to quit' >/dev/null 2>&1 || true
+  osascript -e 'tell application "Agent Swarm Management" to quit' >/dev/null 2>&1 &
+  quit_pid=$!
+  for _ in {1..20}; do
+    if ! kill -0 "$quit_pid" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.25
+  done
+  if kill -0 "$quit_pid" >/dev/null 2>&1; then
+    kill "$quit_pid" >/dev/null 2>&1 || true
+  fi
+  pkill -x AgentSwarmManagement >/dev/null 2>&1 || true
   trash_target="$HOME/.Trash/Agent Swarm Management $(date +%Y%m%d-%H%M%S).app"
   mv "$target_app" "$trash_target"
 fi

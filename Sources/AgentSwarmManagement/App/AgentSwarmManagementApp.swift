@@ -7,18 +7,18 @@ struct AgentSwarmManagementApp: App {
     @StateObject private var syncCoordinator: SyncCoordinator
     @StateObject private var appUpdater: AppUpdater
 
-    private let tokenStore: KeychainTokenStore
+    private let localControlTokenStore: LocalControlTokenStore
 
     init() {
         let store = WorkspaceStore.sample()
         let controlServer = LocalControlServer()
-        let tokenStore = KeychainTokenStore()
+        let localControlTokenStore = LocalControlTokenStore()
 
         _store = StateObject(wrappedValue: store)
         _controlServer = StateObject(wrappedValue: controlServer)
         _syncCoordinator = StateObject(wrappedValue: SyncCoordinator())
         _appUpdater = StateObject(wrappedValue: AppUpdater())
-        self.tokenStore = tokenStore
+        self.localControlTokenStore = localControlTokenStore
 
         let launchToken = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         controlServer.attach(store: store, token: launchToken, port: AppSettings.defaults.localServerPort)
@@ -29,7 +29,7 @@ struct AgentSwarmManagementApp: App {
         // the endpoint in that state.
         Task { @MainActor in
             await store.bootstrap()
-            let durableToken = (try? tokenStore.ensureLocalControlToken()) ?? launchToken
+            let durableToken = (try? localControlTokenStore.ensureToken()) ?? launchToken
             controlServer.attach(store: store, token: durableToken, port: store.settings.localServerPort)
         }
     }
@@ -63,7 +63,7 @@ struct AgentSwarmManagementApp: App {
     }
 
     private func startLocalControlServer() {
-        let token = (try? tokenStore.ensureLocalControlToken())
+        let token = (try? localControlTokenStore.ensureToken())
             ?? UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         controlServer.attach(store: store, token: token, port: store.settings.localServerPort)
     }

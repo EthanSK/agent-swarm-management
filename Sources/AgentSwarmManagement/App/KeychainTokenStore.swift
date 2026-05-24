@@ -3,7 +3,6 @@ import Security
 
 enum KeychainTokenAccount: String {
     case notionAPI
-    case localControl
 }
 
 struct KeychainTokenStore {
@@ -96,15 +95,4 @@ struct KeychainTokenStore {
             throw KeychainError.unexpectedStatus(status)
         }
     }
-
-    func ensureLocalControlToken() throws -> String {
-        if let existing = try read(.localControl), !existing.isEmpty {
-            return existing
-        }
-
-        let token = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
-        try save(token, account: .localControl)
-        return token
-    }
 }
-

@@ -45,7 +45,9 @@ Record a meaningful update:
         "sourceMachine": "MacBook Pro"
       }'
 
-The endpoint token is generated on first launch and stored in Keychain. Copy the ready-to-use endpoint JSON from Settings.
+The endpoint token is generated on first launch and stored as a private local
+app-support file, not in Keychain. Copy the ready-to-use endpoint JSON from
+Settings.
 
 ## Build
 
@@ -97,3 +99,12 @@ Required GitHub Actions secrets for real public updates:
 
 Local ad-hoc builds can launch and be tested, but real Sparkle updates should be
 Developer ID signed, notarized, and appcast-signed before users rely on them.
+
+## Credentials
+
+The local agent endpoint does not require a user credential and does not use
+Keychain. Notion is different: because Notion is the user-owned source of truth,
+the app must eventually receive Notion authorization from the user. Local/dev
+builds support a manually pasted Notion token stored in Keychain; public builds
+should use a proper Notion OAuth flow so users authorize in Notion instead of
+handling raw tokens.
