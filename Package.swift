@@ -10,10 +10,15 @@ let package = Package(
     products: [
         .executable(name: "AgentSwarmManagement", targets: ["AgentSwarmManagement"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", .upToNextMajor(from: "2.7.0"))
+    ],
     targets: [
         .executableTarget(
-            name: "AgentSwarmManagement"
+            name: "AgentSwarmManagement",
+            dependencies: [
+                .product(name: "Sparkle", package: "Sparkle")
+            ]
         )
     ]
 )
-

@@ -1,0 +1,311 @@
+name: Release Desktop
+run-name: >-
+  ${{ (github.event.head_commit
+      && startsWith(github.event.head_commit.message, 'chore: bump version')
+      && github.event.commits[0].message != github.event.head_commit.message
+      && github.event.commits[0].message)
+      || (github.event.head_commit && github.event.head_commit.message)
+      || '' }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  compute-version:
+    name: Compute release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      app_version: ${{ steps.meta.outputs.app_version }}
+      display_version: ${{ steps.meta.outputs.display_version }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+      is_tag_release: ${{ steps.meta.outputs.is_tag_release }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync and verify version metadata
+        run: |
+          npm run version:sync
+          npm run version:check
+
+      - name: Compute metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_version="$(node -p "require('./package.json').version")"
+          if [[ ! "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::package.json version '$app_version' is not a supported semantic version."
+            exit 1
+          fi
+
+          display_version="$app_version"
+          if [[ "$app_version" =~ ^([0-9]+\.[0-9]+)\.0$ ]]; then
+            display_version="${BASH_REMATCH[1]}"
+          fi
+
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+            tag_version="${release_tag#v}"
+            tag_base="${tag_version%%-*}"
+            tag_base="${tag_base%%+*}"
+
+            if [[ "$tag_version" != "$app_version" && "$tag_base" != "$app_version" && "$tag_version" != "$display_version" && "$tag_base" != "$display_version" ]]; then
+              echo "::error::Tag ${release_tag} does not match package.json version ${display_version}."
+              echo "::error::Use v${display_version} (or v${display_version}-build.<n>) for this commit."
+              exit 1
+            fi
+
+            if [[ "$tag_version" == "$app_version" || "$tag_version" == "$display_version" ]]; then
+              release_name="Agent Swarm Management v${display_version}"
+            else
+              release_name="Agent Swarm Management ${release_tag}"
+            fi
+
+            echo "app_version=${app_version}" >> "$GITHUB_OUTPUT"
+            echo "display_version=${display_version}" >> "$GITHUB_OUTPUT"
+            echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+            echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
+            echo "is_tag_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          build_num="${GITHUB_RUN_NUMBER}"
+          canonical_tag="v${display_version}"
+
+          if git ls-remote --tags --refs origin "${canonical_tag}" | grep -q .; then
+            release_tag="v${display_version}-build.${build_num}"
+            release_name="Agent Swarm Management v${display_version} (build ${build_num})"
+          else
+            release_tag="${canonical_tag}"
+            release_name="Agent Swarm Management v${display_version}"
+          fi
+
+          echo "app_version=${app_version}" >> "$GITHUB_OUTPUT"
+          echo "display_version=${display_version}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
+          echo "is_tag_release=false" >> "$GITHUB_OUTPUT"
+
+  build-desktop:
+    name: Build desktop (mac)
+    needs: compute-version
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Verify unified version configuration
+        run: |
+          npm run version:sync
+          npm run version:check
+
+      # Producer Player parity: release builds accept the same mac signing
+      # secret names (CSC_LINK / CSC_KEY_PASSWORD) plus APPLE_* notarization
+      # credentials. If they are absent, the script produces an ad-hoc signed
+      # local-style build, but Sparkle publishing below still requires the
+      # SPARKLE_PRIVATE_KEY secret so a broken unsigned appcast never ships.
+      - name: Import signing certificate
+        shell: bash
+        env:
+          CSC_LINK_B64: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CSC_LINK_B64}" ]; then
+            echo "No CSC_LINK secret configured; building an ad-hoc signed local package."
+            exit 0
+          fi
+          if [ -z "${CSC_KEY_PASSWORD}" ]; then
+            echo "::error title=CSC_KEY_PASSWORD missing::CSC_LINK is set, but CSC_KEY_PASSWORD is empty."
+            exit 1
+          fi
+          keychain="$RUNNER_TEMP/agent-swarm-signing.keychain-db"
+          cert="$RUNNER_TEMP/developer-id.p12"
+          printf "%s" "$CSC_LINK_B64" | base64 --decode > "$cert"
+          security create-keychain -p "" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "" "$keychain"
+          security import "$cert" -k "$keychain" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$keychain"
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk -F\" '/Developer ID Application/ { print $2; exit }')"
+          if [ -z "$identity" ]; then
+            echo "::error title=Code signing identity missing::CSC_LINK imported, but no Developer ID Application identity was found."
+            exit 1
+          fi
+          echo "CODE_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "NOTARIZE=true" >> "$GITHUB_ENV"
+
+      - name: Build macOS package
+        env:
+          AGENT_SWARM_BUILD_NUMBER: ${{ github.run_number }}
+          AGENT_SWARM_COMMIT_SHA: ${{ github.sha }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run release:desktop:mac
+
+      - name: Annotate notarization failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "::error title=macOS release build failed::Check signing/notarization first. This workflow mirrors Producer Player: broken notarization must be loud so existing installs do not silently stay behind."
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-mac-${{ github.ref_name }}
+          path: |
+            release/Agent-Swarm-Management-*-mac-universal.zip
+            release/Agent-Swarm-Management-*-mac-universal.zip.sha256
+            release/Agent-Swarm-Management-latest-mac-universal.zip
+            release/Agent-Swarm-Management-latest-mac-universal.zip.sha256
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish release
+    if: |
+      always() &&
+      needs.compute-version.result == 'success' &&
+      needs.build-desktop.result == 'success' &&
+      (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs:
+      - compute-version
+      - build-desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-mac-${{ github.ref_name }}
+          merge-multiple: true
+          path: release-assets
+
+      - name: Verify required macOS artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mac_zips=(release-assets/Agent-Swarm-Management-*-mac-universal.zip)
+          stable_zips=(release-assets/Agent-Swarm-Management-latest-mac-universal.zip)
+          if [ ${#mac_zips[@]} -lt 1 ] || [ ${#stable_zips[@]} -ne 1 ]; then
+            echo "::error title=macOS release incomplete::Expected versioned and stable mac universal zip artifacts."
+            ls -lah release-assets || true
+            exit 1
+          fi
+
+      - name: Download Sparkle tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L -o sparkle.zip https://github.com/sparkle-project/Sparkle/releases/download/2.9.2/Sparkle-for-Swift-Package-Manager.zip
+          unzip -q sparkle.zip -d sparkle-tools
+          find sparkle-tools -path '*/generate_appcast' -type f -perm /111 -print -quit > sparkle-generate-appcast-path.txt
+          if [ ! -s sparkle-generate-appcast-path.txt ]; then
+            echo "::error title=Sparkle tools missing::generate_appcast was not found."
+            find sparkle-tools -maxdepth 4 -type f | sort
+            exit 1
+          fi
+
+      - name: Generate Sparkle appcast
+        shell: bash
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SPARKLE_PRIVATE_KEY}" ]; then
+            echo "::error title=SPARKLE_PRIVATE_KEY missing::Set the exported Sparkle EdDSA private key as a GitHub Actions secret before publishing updates."
+            exit 1
+          fi
+          generate_appcast="$(cat sparkle-generate-appcast-path.txt)"
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | "$generate_appcast" --ed-key-file - --download-url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download" -o appcast.xml release-assets
+          mv appcast.xml release-assets/appcast.xml
+
+      - name: Validate appcast
+        env:
+          EXPECTED_VERSION: ${{ needs.compute-version.outputs.app_version }}
+        run: node scripts/check-appcast.mjs release-assets/appcast.xml
+
+      - name: Generate changelog from commits
+        id: changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_tag="${{ needs.compute-version.outputs.release_tag }}"
+          git fetch --tags --force 2>/dev/null || true
+          prev_tag="$(git tag --sort=-version:refname | grep -v "^${current_tag}$" | head -1 || true)"
+          if [ -z "$prev_tag" ]; then
+            prev_tag="$(git rev-list --max-parents=0 HEAD)"
+          fi
+          log_end="$current_tag"
+          if ! git rev-parse --verify "$current_tag" >/dev/null 2>&1; then
+            log_end="HEAD"
+          fi
+          {
+            echo "## Changes"
+            git log --pretty=format:"- %s (%h)" "${prev_tag}..${log_end}" || true
+            echo
+            echo
+            echo "## Downloads"
+            echo "- macOS: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/Agent-Swarm-Management-latest-mac-universal.zip"
+          } > release-notes.md
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.compute-version.outputs.release_tag }}"
+          name="${{ needs.compute-version.outputs.release_name }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release-assets/* --clobber
+            gh release edit "$tag" --title "$name" --notes-file release-notes.md --latest
+          else
+            gh release create "$tag" release-assets/* --title "$name" --notes-file release-notes.md --latest
+          fi

@@ -449,6 +449,15 @@ Status as of 2026-05-24:
 - Settings and diagnostics.
 - Import/export.
 
+Status as of 2026-05-24:
+
+- Added Sparkle 2 as the native macOS updater. This is the SwiftUI equivalent of Producer Player's Electron updater path: the app gets standard check/download/install/relaunch UX instead of a custom updater.
+- Added Settings toggles for automatic checks, automatic downloads, manual Check for Updates, and a direct Releases link.
+- Added Producer Player-style version management with package.json as the single source, x.y.0 internal versions, sync/check/bump scripts, stable latest macOS asset names, checksums, and a GitHub release workflow.
+- Added a macOS bundle build/install path that embeds Sparkle, signs the app, creates versioned and stable zip artifacts, and validates the runtime framework path.
+- Investigated the 2026-05-24 launch crash. Root cause was a packaged app missing the Sparkle runtime framework/rpath at launch (dyld: Library not loaded: @rpath/Sparkle.framework/Versions/B/Sparkle). The build now verifies the embedded framework and @executable_path/../Frameworks rpath before it can pass.
+- Added a local launch smoke script that opens the packaged app, checks the /health endpoint, and fails if a new crash report appears.
+
 ### Phase 6: iOS and public distribution
 
 - iOS read/check-in app.

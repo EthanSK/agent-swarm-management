@@ -1,9 +1,10 @@
 .DS_Store
 .build/
+dist/
+release/
 DerivedData/
 *.xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 *.swp
 *.tmp
-

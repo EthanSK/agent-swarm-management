@@ -49,10 +49,51 @@ The endpoint token is generated on first launch and stored in Keychain. Copy the
 
 ## Build
 
-    swift build --package-path /Users/ethansarif-kattan/Projects/agent-swarm-management
+    npm run build:mac
+
+The packaged build writes:
+
+- dist/Agent Swarm Management.app
+- release/Agent-Swarm-Management-<version>-mac-universal.zip
+- release/Agent-Swarm-Management-latest-mac-universal.zip
+
+The build verifies that the Sparkle framework is embedded, that the executable
+has the correct @executable_path/../Frameworks runtime search path, and that the
+bundle passes code-signature validation.
 
 ## Run
 
     swift run --package-path /Users/ethansarif-kattan/Projects/agent-swarm-management AgentSwarmManagement
 
 The executable is a SwiftUI app shell. Running it opens a normal window, starts the local endpoint, and adds a menu bar extra when launched from a GUI-capable macOS session.
+
+## Install Locally
+
+    npm run install:mac
+
+This builds the app, moves any existing /Applications/Agent Swarm Management.app
+to the Trash, installs the new bundle, and clears quarantine metadata for local
+testing.
+
+## Auto Updates
+
+Agent Swarm Management uses Sparkle 2 for the native macOS update UX. Producer
+Player uses Electron's updater stack, but the release/versioning shape is mirrored:
+
+- package.json is the single version source.
+- Versions use Producer-style x.y.0 internal semver with v<x.y> display tags.
+- GitHub Actions builds the macOS zip, generates checksums, signs the Sparkle
+  appcast, and publishes stable latest assets.
+- The app reads appcast.xml from the latest GitHub release.
+
+Required GitHub Actions secrets for real public updates:
+
+- SPARKLE_PRIVATE_KEY
+- CSC_LINK
+- CSC_KEY_PASSWORD
+- APPLE_ID
+- APPLE_APP_SPECIFIC_PASSWORD
+- APPLE_TEAM_ID
+
+Local ad-hoc builds can launch and be tested, but real Sparkle updates should be
+Developer ID signed, notarized, and appcast-signed before users rely on them.

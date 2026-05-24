@@ -5,6 +5,7 @@ struct SettingsView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var controlServer: LocalControlServer
     @ObservedObject var syncCoordinator: SyncCoordinator
+    @ObservedObject var appUpdater: AppUpdater
 
     @State private var notionToken = ""
     @State private var notionRootPage = ""
@@ -88,6 +89,38 @@ struct SettingsView: View {
 
                 TextField("Port", text: $localServerPort)
                 Text(controlServer.statusLine)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Auto Updates") {
+                Toggle(
+                    "Automatically check for updates",
+                    isOn: Binding(
+                        get: { appUpdater.automaticallyChecksForUpdates },
+                        set: { appUpdater.setAutomaticallyChecksForUpdates($0) }
+                    )
+                )
+
+                Toggle(
+                    "Automatically download updates",
+                    isOn: Binding(
+                        get: { appUpdater.automaticallyDownloadsUpdates },
+                        set: { appUpdater.setAutomaticallyDownloadsUpdates($0) }
+                    )
+                )
+
+                HStack {
+                    Button("Check for Updates") {
+                        appUpdater.checkForUpdates()
+                    }
+                    .disabled(!appUpdater.canCheckForUpdates)
+
+                    Button("Open Releases") {
+                        appUpdater.openReleasesPage()
+                    }
+                }
+
+                Text("Uses Sparkle with the GitHub appcast feed packaged into the app bundle.")
                     .foregroundStyle(.secondary)
             }
 

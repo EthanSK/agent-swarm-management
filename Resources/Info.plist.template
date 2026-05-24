@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>Agent Swarm Management</string>
+    <key>CFBundleExecutable</key>
+    <string>AgentSwarmManagement</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.ethansk.agentswarmmanagement</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Agent Swarm Management</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__APP_VERSION__</string>
+    <key>CFBundleVersion</key>
+    <string>__BUILD_NUMBER__</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    <key>SUAutomaticallyUpdate</key>
+    <true/>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUEnableDownloader</key>
+    <true/>
+    <key>SUFeedURL</key>
+    <string>https://github.com/EthanSK/agent-swarm-management/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>sZDbJBDJvta6sbosAjr7qyuVElscFlCc+Qk2g49sGNg=</string>
+    <key>SUScheduledCheckInterval</key>
+    <integer>1800</integer>
+</dict>
+</plist>
+

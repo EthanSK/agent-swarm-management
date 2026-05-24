@@ -210,16 +210,28 @@ private struct HTTPRequest {
     var body: Data
 
     init?(data: Data) {
-        guard let headerRange = data.range(of: Data("\r\n\r\n".utf8)) else {
+        let crlfSeparator = Data("\r\n\r\n".utf8)
+        let lfSeparator = Data("\n\n".utf8)
+        let separatorRange: Range<Data.Index>
+        let separatorLength: Int
+
+        if let range = data.range(of: crlfSeparator) {
+            separatorRange = range
+            separatorLength = crlfSeparator.count
+        } else if let range = data.range(of: lfSeparator) {
+            separatorRange = range
+            separatorLength = lfSeparator.count
+        } else {
             return nil
         }
 
-        let headerData = data[..<headerRange.lowerBound]
+        let headerData = data[..<separatorRange.lowerBound]
         guard let headerText = String(data: headerData, encoding: .utf8) else {
             return nil
         }
 
-        let lines = headerText.components(separatedBy: "\r\n")
+        let lines = headerText.replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
         guard let requestLine = lines.first else { return nil }
         let requestParts = requestLine.split(separator: " ", maxSplits: 2).map(String.init)
         guard requestParts.count >= 2 else { return nil }
@@ -231,7 +243,7 @@ private struct HTTPRequest {
             headers[parts[0].lowercased()] = parts[1].trimmingCharacters(in: .whitespaces)
         }
 
-        let bodyStart = headerRange.upperBound
+        let bodyStart = separatorRange.lowerBound + separatorLength
         let body = data[bodyStart...]
         let expectedLength = headers["content-length"].flatMap(Int.init) ?? 0
         guard body.count >= expectedLength else {
