@@ -556,13 +556,13 @@ actor NotionClient {
         return id
     }
 
-    private func localId(from page: NotionPagePayload, properties: [String: Any]) -> UUID {
+    nonisolated private func localId(from page: NotionPagePayload, properties: [String: Any]) -> UUID {
         UUID(uuidString: richText(properties, "Local ID"))
             ?? UUID(uuidString: Self.dashedUUIDString(from: page.id))
             ?? UUID()
     }
 
-    private func title(_ properties: [String: Any], _ name: String) -> String {
+    nonisolated private func title(_ properties: [String: Any], _ name: String) -> String {
         guard let property = properties[name] as? [String: Any] else { return "" }
         if let title = property["title"] as? [[String: Any]] {
             return title.compactMap { $0["plain_text"] as? String }.joined()
@@ -570,7 +570,7 @@ actor NotionClient {
         return richText(properties, name)
     }
 
-    private func richText(_ properties: [String: Any], _ name: String) -> String {
+    nonisolated private func richText(_ properties: [String: Any], _ name: String) -> String {
         guard
             let property = properties[name] as? [String: Any],
             let richText = property["rich_text"] as? [[String: Any]]
@@ -580,7 +580,7 @@ actor NotionClient {
         return richText.compactMap { $0["plain_text"] as? String }.joined()
     }
 
-    private func selectName(_ properties: [String: Any], _ name: String) -> String? {
+    nonisolated private func selectName(_ properties: [String: Any], _ name: String) -> String? {
         guard
             let property = properties[name] as? [String: Any],
             let select = property["select"] as? [String: Any]
@@ -590,7 +590,7 @@ actor NotionClient {
         return select["name"] as? String
     }
 
-    private func number(_ properties: [String: Any], _ name: String) -> Double? {
+    nonisolated private func number(_ properties: [String: Any], _ name: String) -> Double? {
         guard let property = properties[name] as? [String: Any] else { return nil }
         if let value = property["number"] as? Double {
             return value
@@ -601,7 +601,7 @@ actor NotionClient {
         return nil
     }
 
-    private func date(_ properties: [String: Any], _ name: String) -> Date? {
+    nonisolated private func date(_ properties: [String: Any], _ name: String) -> Date? {
         guard
             let property = properties[name] as? [String: Any],
             let date = property["date"] as? [String: Any],
@@ -609,14 +609,14 @@ actor NotionClient {
         else {
             return nil
         }
-        return isoFormatter.date(from: start)
+        return ISO8601DateFormatter().date(from: start)
     }
 
     private func uuidList(_ ids: [UUID]) -> String {
         ids.map(\.uuidString).joined(separator: ",")
     }
 
-    private func uuidList(_ value: String) -> [UUID] {
+    nonisolated private func uuidList(_ value: String) -> [UUID] {
         value
             .split(separator: ",")
             .compactMap { UUID(uuidString: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
