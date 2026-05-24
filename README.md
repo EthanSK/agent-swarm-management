@@ -2,9 +2,9 @@
 
 Native macOS command center for tracking agent-driven projects, tasks, follow-ups, and proof.
 
-This repo currently contains the first planning pass and a local-first SwiftUI scaffold. The app seeds recovered sample data on first launch, writes edits to JSON, and keeps Notion mirroring plus the MCP control surface behind typed seams for later phases.
+This repo currently contains the first planning pass and a SwiftUI scaffold. The app seeds recovered sample data on first launch, writes edits to JSON for the prototype, and keeps Notion plus the MCP control surface behind typed seams for later phases.
 
-The architecture is intentionally local-first: the Mac app owns canonical live state, while Notion is a human-readable digest/mirror unless measured write volume proves pure Notion is still comfortably low-volume.
+The current product direction is Notion-first: Notion is the only durable source of truth for v1, while the Mac app keeps a disposable local cache for speed and offline reading.
 
 ## Current Scope
 
@@ -12,8 +12,8 @@ The architecture is intentionally local-first: the Mac app owns canonical live s
 - Projects, agents, follow-ups, and tasks lists.
 - Manual create/edit/delete flows.
 - Quick status updates for tasks and follow-ups.
-- Local JSON cache at `~/Library/Application Support/AgentSwarmManagement/workspace.json`.
-- Stub Notion client, sync queue, and local control server modules.
+- Prototype JSON cache at `~/Library/Application Support/AgentSwarmManagement/workspace.json`.
+- Stub Notion client, cache/sync queue, and local control server modules.
 
 ## Build
 
