@@ -2,6 +2,7 @@
 .build/
 dist/
 release/
+artifacts/
 DerivedData/
 *.xcuserdata/
 *.xcworkspace/xcuserdata/

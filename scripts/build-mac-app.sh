@@ -30,6 +30,10 @@ bin_path="$(swift build -c "$configuration" --show-bin-path)"
 cp "$bin_path/$executable_name" "$app_path/Contents/MacOS/$executable_name"
 chmod +x "$app_path/Contents/MacOS/$executable_name"
 
+if [ -f "$repo_root/Resources/AppIcon.icns" ]; then
+  cp "$repo_root/Resources/AppIcon.icns" "$app_path/Contents/Resources/AppIcon.icns"
+fi
+
 sparkle_framework="$bin_path/Sparkle.framework"
 if [ ! -d "$sparkle_framework" ]; then
   sparkle_framework="$(find "$repo_root/.build" -path '*/Sparkle.framework' -type d | head -1)"

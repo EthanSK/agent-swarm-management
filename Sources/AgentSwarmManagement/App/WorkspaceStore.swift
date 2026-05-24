@@ -102,6 +102,9 @@ final class WorkspaceStore: ObservableObject {
                 recomputeProjectCounters()
                 try persist()
             }
+            if normalizeLegacyScaffoldData() {
+                try persist()
+            }
             lastPersistenceError = nil
         } catch {
             lastPersistenceError = error.localizedDescription
@@ -417,6 +420,51 @@ final class WorkspaceStore: ObservableObject {
         markControlEventHandled(request.operationId)
     }
 
+    @discardableResult
+    func registerAgent(_ request: AgentRegistrationRequest) -> SwarmAgent {
+        let normalizedAgentName = request.agentName.trimmedNonEmpty ?? "Unnamed agent"
+        let normalizedHarness = request.harness.trimmedNonEmpty ?? "Unknown harness"
+
+        var agent = agents.first { existing in
+            if let incomingId = request.harnessAgentId?.trimmedNonEmpty,
+               existing.harnessAgentId == incomingId,
+               existing.harness.caseInsensitiveCompare(normalizedHarness) == .orderedSame {
+                return true
+            }
+
+            return existing.name.caseInsensitiveCompare(normalizedAgentName) == .orderedSame
+                && existing.harness.caseInsensitiveCompare(normalizedHarness) == .orderedSame
+        } ?? SwarmAgent(
+            id: UUID(),
+            name: normalizedAgentName,
+            harness: normalizedHarness,
+            status: request.status,
+            projectIds: [],
+            lastUpdate: .now
+        )
+
+        // Registration deliberately does not attach the agent to projects.
+        // Projects should emerge from real agent events so the app remains an
+        // operations surface, not a manual CRM-style data-entry tool.
+        agent.name = normalizedAgentName
+        agent.harness = normalizedHarness
+        agent.status = request.status
+        agent.harnessAgentId = request.harnessAgentId?.trimmedNonEmpty ?? agent.harnessAgentId
+        agent.harnessVersion = request.harnessVersion?.trimmedNonEmpty ?? agent.harnessVersion
+        agent.skillVersion = request.skillVersion?.trimmedNonEmpty ?? agent.skillVersion
+        agent.sourceMachine = request.sourceMachine?.trimmedNonEmpty ?? agent.sourceMachine
+        agent.lastHealthSummary = request.summary?.trimmedNonEmpty ?? agent.lastHealthSummary
+        agent.lastUpdate = .now
+        agent.lastUpdatedBy = request.actorDescription
+        upsertAgent(agent)
+
+        if let operationId = request.operationId?.trimmedNonEmpty {
+            markControlEventHandled(operationId)
+        }
+
+        return agent
+    }
+
     func save() {
         do {
             try persist()
@@ -622,8 +670,28 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
+    private func normalizeLegacyScaffoldData() -> Bool {
+        var didChange = false
+
+        for index in agents.indices {
+            if agents[index].name == "OpenClaw Codex", agents[index].harness == "OpenClaw / Telegram" {
+                agents[index].name = "OpenClaw"
+                agents[index].harness = "OpenClaw" // Old cache showed combined OpenClaw/Codex; launch a pre-self-registration cache to repro.
+                didChange = true
+            }
+
+            if agents[index].name == "Claude Code", agents[index].harness == "Agent Bridge" {
+                agents[index].harness = "Claude Code" // Old cache disabled Claude install actions; launch the previous scaffold cache to repro.
+                didChange = true
+            }
+        }
+
+        return didChange
+    }
+
     static func sample() -> WorkspaceStore {
         let projectId = UUID()
+        let openClawId = UUID()
         let codexId = UUID()
         let claudeId = UUID()
 
@@ -632,17 +700,26 @@ final class WorkspaceStore: ObservableObject {
             name: "Agent Swarm Management",
             summary: "Native Mac command center for projects, agents, tasks, follow-ups, and proof.",
             status: .needsAttention,
-            activeAgentIds: [codexId, claudeId],
+            activeAgentIds: [openClawId, codexId, claudeId],
             openTaskCount: 1,
             followUpCount: 1,
             lastMeaningfulChange: .now
         )
 
+        let openClaw = SwarmAgent(
+            id: openClawId,
+            name: "OpenClaw",
+            harness: "OpenClaw",
+            status: .needsAttention,
+            projectIds: [projectId],
+            lastUpdate: .now
+        )
+
         let codex = SwarmAgent(
             id: codexId,
-            name: "OpenClaw Codex",
-            harness: "OpenClaw / Telegram",
-            status: .needsAttention,
+            name: "Codex",
+            harness: "Codex",
+            status: .healthy,
             projectIds: [projectId],
             lastUpdate: .now
         )
@@ -650,7 +727,7 @@ final class WorkspaceStore: ObservableObject {
         let claude = SwarmAgent(
             id: claudeId,
             name: "Claude Code",
-            harness: "Agent Bridge",
+            harness: "Claude Code",
             status: .healthy,
             projectIds: [projectId],
             lastUpdate: .now
@@ -678,7 +755,7 @@ final class WorkspaceStore: ObservableObject {
 
         return WorkspaceStore(
             projects: [project],
-            agents: [codex, claude],
+            agents: [openClaw, codex, claude],
             tasks: [task],
             followUps: [followUp],
             artifacts: []

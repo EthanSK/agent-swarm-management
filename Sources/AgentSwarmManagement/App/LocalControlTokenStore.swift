@@ -72,4 +72,8 @@ struct LocalControlTokenStore {
             .appendingPathComponent("AgentSwarmManagement", isDirectory: true)
             .appendingPathComponent("local-control-token")
     }
+
+    static var defaultTokenPath: String {
+        defaultTokenURL().path
+    }
 }

@@ -16,7 +16,7 @@ The first useful version should answer four questions quickly:
 - What needs Ethan's attention or approval?
 - What changed since Ethan last looked?
 
-The long-term product can grow into iOS and deeper agent orchestration, but v1 should stay sharply focused: a native Mac menu bar app that expands into a full window, backed by Notion as the only durable source of truth and a disposable local cache for speed/offline reading.
+The long-term product can grow into iOS, a menu bar companion, and deeper agent orchestration, but v1 should stay sharply focused: a normal native Mac window backed by Notion as the only durable source of truth and a disposable local cache for speed/offline reading. Menu bar status is a later convenience, not the primary product shape.
 
 ## Source Context
 
@@ -25,6 +25,7 @@ Inputs recovered from the failed Telegram voice-note window:
 - Voice 3584: original request to read the Notion ideas, search MacBook/Mac Mini history, explain the structure/plan, and use extra high effort.
 - Voices 3592/3593: build direction, OAuth/API-limit questions, Notion root-page model, many-to-many project/agent views, MCP/HTTP control surface, Claude Code/OpenClaw plugin hooks, native SwiftUI direction, and follow-up questions view.
 - Voice 3596: "are you still running?" check after the prior OpenClaw session stalled.
+- Voice 3ebd2f7e, 2026-05-24: Ethan clarified the app should be normal-window first, not menu-bar first; the scaffold was too manual; Notion setup needs to be obvious; agents should self-register through the local MCP/HTTP contract; OpenClaw, Codex, and Claude Code are separate harnesses; each agent row needs install/reinstall instructions; projects should be created by agent reports rather than primary manual UI; and the project needs a large tracked todo list before continuing.
 
 Notion sources read:
 
@@ -51,6 +52,39 @@ The same data should be visible in different slices:
 - Agent view: one agent, all projects it is touching, recent outputs, open follow-ups.
 - Follow-up view: everything waiting on Ethan, grouped by urgency/project/agent.
 - Task view: plain todo list mode for quick scanning and edits.
+
+## Current Build Todo List
+
+This list is intentionally large and explicit so the build can advance in checked-off slices.
+
+- [x] Make the GitHub repo public and push the current app.
+- [x] Keep README public-facing and update it as behavior changes.
+- [x] Port Producer Player-style Sparkle/version/release workflow.
+- [x] Fix first-launch Keychain prompt by keeping the local endpoint token out of Keychain.
+- [x] Generate the first logo/app-icon direction and wire the Dock icon asset into the macOS bundle.
+- [x] Move the app direction to normal-window-first; menu bar status is deferred.
+- [x] Split the scaffold sample agents into OpenClaw, Codex, and Claude Code instead of combining OpenClaw/Codex.
+- [x] Add agent self-registration through `POST /v1/agents/register`.
+- [x] Add authenticated setup and diagnostics endpoints: `GET /v1/setup`, `GET /v1/diagnostics`.
+- [x] Add a first-pass MCP Streamable HTTP JSON-RPC endpoint at `POST /mcp`.
+- [x] Add MCP tools/resources/prompts for setup, registration, reporting, diagnostics, and skill packages.
+- [x] Remove bearer-token persistence from generated skill text; skills read the token from the private local token file at runtime.
+- [x] Add skill package generation for OpenClaw, Claude Code, Codex, and generic harnesses.
+- [x] Add skill version/hash checking via `POST /v1/skills/check`.
+- [x] Replace the manual New Agent form with an Add Agent setup flow.
+- [x] Add Install/Reinstall and Copy Skill actions for known harnesses in the Agents view.
+- [x] Remove manual project creation from the primary Projects view.
+- [x] Add a top-level Notion setup banner when data sources are not configured.
+- [x] Add richer Notion OAuth/onboarding copy to Settings and document manual token as alpha fallback.
+- [x] Fix Settings label clipping by replacing the narrow Form label column with wider vertical field labels.
+- [x] Add local diagnostic logging for update checks, Notion sync/API failures, endpoint routing/auth errors, MCP failures, and skill installs.
+- [x] Reframe the Agents harness dropdown as a setup target selector instead of manual agent creation.
+- [ ] Add a polished first-run OAuth flow backed by a broker or documented self-hosted OAuth callback service.
+- [ ] Add local installer path preview/backups to a dedicated confirmation UI before writing harness skills.
+- [ ] Add automated tests for registration idempotency, event dedupe, skill hash checks, and MCP `tools/list` / `tools/call`.
+- [ ] Run real app smoke tests against `/health`, `/v1/setup`, `/v1/agents/register`, `/v1/diagnostics`, and `/mcp`.
+- [ ] Install the rebuilt app into `/Applications` after build verification.
+- [ ] Commit and push the full slice.
 
 ## Source Of Truth And Notion Model
 
@@ -226,7 +260,13 @@ Suggested modules:
 
 ## Views
 
-### Menu Bar View
+### Window-First View
+
+The primary app is a normal macOS window. Keep the window dense and operational: left navigation, obvious setup/health banners, and list/detail surfaces for agents, projects, follow-ups, and tasks.
+
+Menu bar status can come later after the main flows work. Do not make the v1 product depend on a menu-bar-only interaction model.
+
+### Deferred Menu Bar View
 
 Compact status:
 
@@ -273,6 +313,10 @@ Each agent row should show:
 - Last update.
 - Open follow-ups.
 - Recent artifacts.
+- Installed skill version/hash.
+- Source machine.
+- Install/Reinstall action for known harnesses.
+- Copy Skill/Setup actions.
 
 Agent detail should show:
 
@@ -281,6 +325,8 @@ Agent detail should show:
 - Questions asked to Ethan.
 - Hook health.
 - Last successful state update.
+
+Adding an agent should not be a manual name/status/project form. The Add Agent flow should show setup instructions and copy/install actions. The actual agent row is created when the harness registers itself through the local contract.
 
 ### Follow-Ups View
 
@@ -314,9 +360,10 @@ Avoid implementing a complex custom board first. Notion boards can remain a sour
 The app should expose a local control surface so agents can update it without screen scraping:
 
 - Local HTTP endpoint, bound to localhost by default.
-- MCP server wrapper over the same commands.
+- Real MCP Streamable HTTP JSON-RPC endpoint at `POST /mcp`, plus simple REST endpoints for hooks/scripts.
 - Shared operation schema for both.
-- Local auth token stored in Keychain and shown/copyable from Settings.
+- Local auth token stored as a private app-support file and read by installed skills at runtime; do not persist bearer tokens inside generated skill text.
+- Origin validation for browser-originated local requests.
 
 Multi-device topology:
 
@@ -329,17 +376,31 @@ Multi-device topology:
 
 Initial commands:
 
-- upsert_project
-- upsert_agent
-- start_run
-- update_run_status
-- upsert_task
-- upsert_follow_up
-- resolve_follow_up
-- attach_artifact
-- record_meaningful_change
-- get_open_follow_ups
-- get_project_status
+- `GET /v1/setup`: returns endpoints, current skill version, token source, supported harnesses, and schemas.
+- `GET /v1/diagnostics`: returns app, endpoint, Notion, and agent health.
+- `POST /v1/agents/register`: idempotently creates/updates an agent/harness row without project assignment.
+- `POST /v1/agent-events`: records meaningful project/task/follow-up updates.
+- `GET /v1/skill-packages/{harness}`: returns the latest skill package for OpenClaw, Claude Code, Codex, or generic harnesses.
+- `POST /v1/skills/check`: compares installed skill version/hash with the app's current package.
+- `POST /mcp`: supports `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, and `prompts/get`.
+
+MCP tools:
+
+- `agent_swarm_get_setup_instructions`
+- `agent_swarm_register`
+- `agent_swarm_report_event`
+- `agent_swarm_check_skill`
+- `agent_swarm_get_skill_package`
+- `agent_swarm_diagnostics`
+
+MCP resources:
+
+- `agent-swarm://setup`
+- `agent-swarm://schemas/agent-registration`
+- `agent-swarm://schemas/agent-event`
+- `agent-swarm://skill/openclaw`
+- `agent-swarm://skill/claude-code`
+- `agent-swarm://skill/codex`
 
 Rules for agent updates:
 
@@ -371,10 +432,11 @@ Setup flow:
 1. Install/run the Mac app.
 2. Connect Notion token/OAuth.
 3. App creates or verifies the Notion root page/schema.
-4. App shows local endpoint and auth token.
-5. User runs the Claude/OpenClaw setup command.
-6. Hook sends a test update.
-7. App shows hook health and last test event.
+4. User clicks Add Agent and selects the harness.
+5. App shows/copies setup JSON and can install/reinstall the local skill for OpenClaw, Claude Code, or Codex.
+6. Harness reads the private local token file at runtime, calls setup, then registers itself.
+7. Hook sends a test update.
+8. App shows hook health, installed skill version, and last test event.
 
 ## Phased Roadmap
 
@@ -427,16 +489,18 @@ Status as of 2026-05-24:
 
 Status as of 2026-05-24:
 
-- Implemented the localhost HTTP surface at http://127.0.0.1:17391 with bearer-token auth generated into Keychain.
-- Implemented GET /health, GET /v1/status, and POST /v1/agent-events.
+- Implemented the localhost HTTP surface at http://127.0.0.1:17391 with bearer-token auth generated into a private local app-support file.
+- Implemented GET /health, GET /v1/status, GET /v1/setup, GET /v1/diagnostics, GET /v1/skill-packages/{harness}, POST /v1/skills/check, POST /v1/agents/register, POST /v1/agent-events, and POST /mcp.
 - Agent event writes dedupe by operationId, upsert project/agent/task/follow-up records, and feed the same Notion outbox as manual UI edits.
 - Verified the launched app served /health successfully.
-- The endpoint is MCP-style JSON HTTP now. A formal MCP wrapper/manifest remains a next slice.
+- The MCP endpoint now supports initialize, tools, resources, and prompts for the setup/reporting contract. Further testing and a cleaner handler split remain next.
 
 ### Phase 4: Claude Code/OpenClaw hooks
 
 - Claude Code post-turn hook.
 - OpenClaw integration notes/plugin/skill.
+- Codex skill/plugin instructions.
+- Install/reinstall skill UI for known harnesses.
 - Test with real sessions.
 - Show transcript/artifact links in the app.
 
@@ -470,12 +534,14 @@ Status as of 2026-05-24:
 ## Near-Term Implementation Decisions
 
 - Build native Mac first in SwiftUI.
-- Keep v1 list/detail, not board-first.
+- Keep v1 as a normal window with list/detail, not board-first and not menu-bar-first.
 - Use Notion as the only durable source of truth for v1; local persistence is cache/outbox only.
 - Keep Firestore out of v1 unless measured write volume or remote live-dashboard requirements prove Notion-only cannot work.
 - Create Notion-native board/table/calendar views so users can inspect and edit state directly in Notion.
 - Denormalize app-critical status/name/count fields into plain properties instead of relying on deep rollups.
 - Use a local HTTP/MCP endpoint for agent writes.
+- Agent creation should be self-registration only in the main flow. Manual project/agent creation can exist as a dev/debug escape hatch, but it should not be the primary UX.
+- Treat OpenClaw, Codex, and Claude Code as separate harnesses.
 - Make Follow-ups a top-level view.
 - Avoid public OAuth until there is a tiny broker.
 - Keep every hook failure non-blocking for the main agent run.

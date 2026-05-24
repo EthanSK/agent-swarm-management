@@ -190,3 +190,81 @@ struct AgentEventRequest: Codable, Sendable {
         sourceMachine = try container.decodeIfPresent(String.self, forKey: .sourceMachine)
     }
 }
+
+struct AgentRegistrationRequest: Codable, Sendable {
+    var operationId: String?
+    var agentName: String
+    var harness: String
+    var harnessAgentId: String?
+    var harnessVersion: String?
+    var skillVersion: String?
+    var sourceMachine: String?
+    var capabilities: [String]
+    var status: SwarmStatus
+    var summary: String?
+
+    var actorDescription: String {
+        [sourceMachine, harness, agentName]
+            .compactMap { value in
+                let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            .joined(separator: " / ")
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case operationId
+        case agentName
+        case harness
+        case harnessAgentId
+        case harnessVersion
+        case skillVersion
+        case sourceMachine
+        case capabilities
+        case status
+        case summary
+    }
+
+    init(
+        operationId: String? = nil,
+        agentName: String,
+        harness: String,
+        harnessAgentId: String? = nil,
+        harnessVersion: String? = nil,
+        skillVersion: String? = nil,
+        sourceMachine: String? = nil,
+        capabilities: [String] = [],
+        status: SwarmStatus = .healthy,
+        summary: String? = nil
+    ) {
+        self.operationId = operationId
+        self.agentName = agentName
+        self.harness = harness
+        self.harnessAgentId = harnessAgentId
+        self.harnessVersion = harnessVersion
+        self.skillVersion = skillVersion
+        self.sourceMachine = sourceMachine
+        self.capabilities = capabilities
+        self.status = status
+        self.summary = summary
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        operationId = try container.decodeIfPresent(String.self, forKey: .operationId)
+        agentName = try container.decode(String.self, forKey: .agentName)
+        harness = try container.decode(String.self, forKey: .harness)
+        harnessAgentId = try container.decodeIfPresent(String.self, forKey: .harnessAgentId)
+        harnessVersion = try container.decodeIfPresent(String.self, forKey: .harnessVersion)
+        skillVersion = try container.decodeIfPresent(String.self, forKey: .skillVersion)
+        sourceMachine = try container.decodeIfPresent(String.self, forKey: .sourceMachine)
+        capabilities = try container.decodeIfPresent([String].self, forKey: .capabilities) ?? []
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+
+        if let rawStatus = try container.decodeIfPresent(String.self, forKey: .status) {
+            status = SwarmStatus(rawValue: rawStatus) ?? SwarmStatus(apiValue: rawStatus)
+        } else {
+            status = .healthy
+        }
+    }
+}

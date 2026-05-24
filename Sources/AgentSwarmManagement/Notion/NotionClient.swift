@@ -389,14 +389,20 @@ actor NotionClient {
             request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
         }
 
+        AppLogger.info("notion.request_started", details: ["method": method, "path": path])
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
+            AppLogger.error("notion.invalid_response", details: ["method": method, "path": path])
             throw NotionAPIError.invalidResponse
         }
 
         if httpResponse.statusCode == 429 {
             let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
                 .flatMap(TimeInterval.init) ?? 1
+            AppLogger.warning(
+                "notion.request_rate_limited",
+                details: ["method": method, "path": path, "retryAfterSeconds": "\(retryAfter)"]
+            )
             throw NotionAPIError.rateLimited(seconds: retryAfter)
         }
 
@@ -404,13 +410,27 @@ actor NotionClient {
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             let message = payload?["message"] as? String ?? String(data: data, encoding: .utf8) ?? "No response body"
+            AppLogger.error(
+                "notion.request_failed",
+                details: [
+                    "method": method,
+                    "path": path,
+                    "status": "\(httpResponse.statusCode)",
+                    "message": message
+                ]
+            )
             throw NotionAPIError.requestFailed(status: httpResponse.statusCode, message: message)
         }
 
         guard let payload else {
+            AppLogger.error("notion.malformed_payload", details: ["method": method, "path": path])
             throw NotionAPIError.malformedPayload("expected JSON object")
         }
 
+        AppLogger.info(
+            "notion.request_finished",
+            details: ["method": method, "path": path, "status": "\(httpResponse.statusCode)"]
+        )
         return payload
     }
 

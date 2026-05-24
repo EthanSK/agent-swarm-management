@@ -36,13 +36,8 @@ struct AgentSwarmManagementApp: App {
 
     var body: some Scene {
         WindowGroup("Agent Swarm Management") {
-            RootView(store: store)
+            RootView(store: store, controlServer: controlServer)
         }
-
-        MenuBarExtra("Agent Swarm", systemImage: "circle.hexagongrid") {
-            MenuBarView(store: store, controlServer: controlServer)
-        }
-        .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView(

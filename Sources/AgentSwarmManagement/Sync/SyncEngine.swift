@@ -34,6 +34,14 @@ actor SyncEngine {
             // to the outbox lets the UI show the blocked operation instead of
             // silently spinning or losing the user/agent update.
             nextAllowedRequestAt = Date().addingTimeInterval(seconds)
+            AppLogger.warning(
+                "notion.rate_limited",
+                details: [
+                    "operationId": operation.id,
+                    "kind": operation.kind.rawValue,
+                    "retryAfterSeconds": "\(seconds)"
+                ]
+            )
             throw NotionAPIError.rateLimited(seconds: seconds)
         }
     }
@@ -77,10 +85,10 @@ actor SyncEngine {
         let now = Date()
         if nextAllowedRequestAt > now {
             let delay = nextAllowedRequestAt.timeIntervalSince(now)
+            AppLogger.info("notion.throttle_wait", details: ["seconds": "\(delay)"])
             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
 
         nextAllowedRequestAt = Date().addingTimeInterval(minimumRequestSpacing)
     }
 }
-

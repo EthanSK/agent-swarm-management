@@ -23,21 +23,25 @@ final class SyncCoordinator: ObservableObject {
                 try tokenStore.delete(.notionAPI)
                 statusLine = "Notion token removed"
                 notionCredentialStatus = "Not connected"
+                AppLogger.info("notion.token_removed")
             } else {
                 try tokenStore.save(trimmed, account: .notionAPI)
                 statusLine = "Notion token saved in Keychain"
                 notionCredentialStatus = "Saved in Keychain"
+                AppLogger.info("notion.token_saved", details: ["storage": "keychain"])
             }
             lastError = nil
         } catch {
             lastError = error.localizedDescription
             statusLine = "Could not update Notion token"
+            AppLogger.error("notion.token_save_failed", error: error)
         }
     }
 
     func createWorkspaceSchema(in store: WorkspaceStore) async {
         guard !store.settings.notionRootPage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             statusLine = "Add the Agent Swarm Management parent page first"
+            AppLogger.warning("notion.schema_create_blocked", details: ["reason": "missing_parent_page"])
             return
         }
 
@@ -46,6 +50,16 @@ final class SyncCoordinator: ObservableObject {
             let schema = try await client.createSchema(rootPage: store.settings.notionRootPage)
             store.recordSchema(schema)
             statusLine = "Created Notion data sources under the parent page"
+            AppLogger.info(
+                "notion.schema_created",
+                details: [
+                    "rootPageId": schema.rootPageId,
+                    "projectsDataSourceId": schema.projectsDataSourceId,
+                    "agentsDataSourceId": schema.agentsDataSourceId,
+                    "tasksDataSourceId": schema.tasksDataSourceId,
+                    "followUpsDataSourceId": schema.followUpsDataSourceId
+                ]
+            )
         }
     }
 
@@ -55,12 +69,22 @@ final class SyncCoordinator: ObservableObject {
             let snapshot = try await client.fetchWorkspaceSnapshot(settings: store.settings)
             store.applyRemoteSnapshot(snapshot)
             statusLine = "Pulled \(snapshot.projects.count) projects, \(snapshot.agents.count) agents, \(snapshot.tasks.count) tasks, and \(snapshot.followUps.count) follow-ups"
+            AppLogger.info(
+                "notion.pull_completed",
+                details: [
+                    "projects": "\(snapshot.projects.count)",
+                    "agents": "\(snapshot.agents.count)",
+                    "tasks": "\(snapshot.tasks.count)",
+                    "followUps": "\(snapshot.followUps.count)"
+                ]
+            )
         }
     }
 
     func pushPending(from store: WorkspaceStore) async {
         guard !store.settings.writesPaused else {
             statusLine = "Notion writes are paused"
+            AppLogger.warning("notion.push_blocked", details: ["reason": "writes_paused"])
             return
         }
 
@@ -83,6 +107,16 @@ final class SyncCoordinator: ObservableObject {
                 } catch {
                     store.markSyncFailed(operation: operation, error: error.localizedDescription)
                     blocked += 1
+                    AppLogger.error(
+                        "notion.push_operation_failed",
+                        error: error,
+                        details: [
+                            "operationId": operation.id,
+                            "kind": operation.kind.rawValue,
+                            "mutation": operation.mutation.rawValue,
+                            "attemptCount": "\(operation.attemptCount)"
+                        ]
+                    )
 
                     // Stop after the first blocked operation so ordering stays
                     // predictable and Notion's Retry-After window is respected.
@@ -95,6 +129,10 @@ final class SyncCoordinator: ObservableObject {
             } else {
                 statusLine = "Pushed \(applied); blocked \(blocked) pending operation"
             }
+            AppLogger.info(
+                "notion.push_completed",
+                details: ["applied": "\(applied)", "blocked": "\(blocked)"]
+            )
         }
     }
 
@@ -103,13 +141,16 @@ final class SyncCoordinator: ObservableObject {
         isWorking = true
         statusLine = label
         lastError = nil
+        AppLogger.info("sync.operation_started", details: ["label": label])
 
         do {
             try await operation()
             lastError = nil
+            AppLogger.info("sync.operation_finished", details: ["label": label])
         } catch {
             lastError = error.localizedDescription
             statusLine = error.localizedDescription
+            AppLogger.error("sync.operation_failed", error: error, details: ["label": label])
         }
 
         isWorking = false
@@ -118,6 +159,7 @@ final class SyncCoordinator: ObservableObject {
     private func notionClient(settings: AppSettings) throws -> NotionClient {
         guard let token = try tokenStore.read(.notionAPI), !token.isEmpty else {
             notionCredentialStatus = "Not connected"
+            AppLogger.warning("notion.client_missing_token")
             throw NotionAPIError.missingToken
         }
         notionCredentialStatus = "Saved in Keychain"

@@ -66,6 +66,11 @@ struct SwarmAgent: Identifiable, Codable, Hashable, Sendable {
     var status: SwarmStatus
     var projectIds: [UUID]
     var lastUpdate: Date
+    var harnessAgentId: String? = nil
+    var harnessVersion: String? = nil
+    var skillVersion: String? = nil
+    var sourceMachine: String? = nil
+    var lastHealthSummary: String? = nil
     var sourcePageId: String? = nil
     var lastUpdatedBy: String? = nil
 }

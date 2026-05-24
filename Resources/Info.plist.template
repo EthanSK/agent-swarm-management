@@ -10,6 +10,8 @@
     <string>AgentSwarmManagement</string>
     <key>CFBundleIdentifier</key>
     <string>com.ethansk.agentswarmmanagement</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -42,4 +44,3 @@
     <integer>1800</integer>
 </dict>
 </plist>
-

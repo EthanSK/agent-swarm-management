@@ -20,7 +20,8 @@ enum MainSection: String, CaseIterable, Identifiable, Hashable {
 
 struct RootView: View {
     @ObservedObject var store: WorkspaceStore
-    @State private var selection: MainSection? = .projects
+    @ObservedObject var controlServer: LocalControlServer
+    @State private var selection: MainSection? = .agents
 
     var body: some View {
         NavigationSplitView {
@@ -30,18 +31,24 @@ struct RootView: View {
             }
             .navigationTitle("Agent Swarm")
         } detail: {
-            switch selection ?? .projects {
-            case .projects:
-                ProjectsView(store: store)
-            case .agents:
-                AgentsView(store: store)
-            case .followUps:
-                FollowUpsView(store: store)
-            case .tasks:
-                TasksView(store: store)
+            VStack(spacing: 0) {
+                if !store.settings.hasCoreNotionDataSources {
+                    NotionSetupBanner()
+                }
+
+                switch selection ?? .agents {
+                case .projects:
+                    ProjectsView(store: store)
+                case .agents:
+                    AgentsView(store: store, controlServer: controlServer)
+                case .followUps:
+                    FollowUpsView(store: store)
+                case .tasks:
+                    TasksView(store: store)
+                }
             }
         }
-        .frame(minWidth: 940, minHeight: 620)
+        .frame(minWidth: 980, minHeight: 640)
     }
 }
 
@@ -54,6 +61,27 @@ struct StatusBadge: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(.quaternary, in: Capsule())
+    }
+}
+
+private struct NotionSetupBanner: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Label("Notion setup needed", systemImage: "exclamationmark.triangle")
+                .font(.headline)
+
+            Text("Connect Notion before treating local cache changes as durable.")
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            SettingsLink {
+                Label("Open Settings", systemImage: "gearshape")
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(.yellow.opacity(0.12))
     }
 }
 
