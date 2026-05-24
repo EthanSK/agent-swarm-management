@@ -60,6 +60,19 @@ The local app may keep a cache, but the cache is not a second source of truth. I
 
 The practical constraint is write granularity. Notion can query a data source for multiple page rows and can append up to 100 blocks to one parent, but updating the status of 50 agent/task rows is still 50 separate PATCH /v1/pages/{id} calls. There is no multi-page batch write endpoint. Because each integration also shares the same rate limit pool across machines, all Notion writes should go through one coordinator in the Mac app rather than direct writes from every agent hook.
 
+The coordinator can exist on more than one device. A MacBook agent should be able to talk to the MacBook app endpoint, and a Mac Mini agent should be able to talk to the Mac Mini app endpoint. Those app instances are local coordinators for their own machine, but they all persist durable state into the same Notion root page and data sources. Notion page IDs are the canonical record IDs, so both devices can update the same project/task/agent records without requiring a hosted Agent Swarm backend.
+
+Multi-device v1 rule:
+
+- Each device runs its own localhost HTTP/MCP endpoint for local agents.
+- Each device keeps a disposable cache and a Notion write queue.
+- Every mutation carries an operation ID derived from machine ID, harness, session/chat ID, source turn ID, and command name.
+- Every durable record stores the source machine/harness/session that last changed it.
+- Duplicate operation IDs are ignored before writing to Notion.
+- If two devices update different fields on the same Notion page, merge them when safe.
+- If two devices update the same field, newest confirmed Notion edit wins by default and the loser becomes a Follow-up/Sync Issue when data loss is possible.
+- The combined write load still needs to respect Notion's per-connection rate limit, so hooks should coalesce aggressively and avoid heartbeat/status spam.
+
 Pure Notion is acceptable if the app is designed as deliberately low-volume:
 
 - Sustained writes stay comfortably below about 30 updates per minute.
@@ -172,7 +185,9 @@ Write queue:
 - On HTTP 429, pause that connection using Retry-After.
 - On validation errors, mark the specific item as blocked and show it in Follow-ups/Sync Issues.
 - Use idempotency-style local operation IDs so a failed/retried hook update does not create duplicate tasks.
-- Route all Notion writes through the app coordinator so the rate limiter sees the full machine/agent workload.
+- Route all local-machine agent writes through that machine's app coordinator so the rate limiter sees the full local workload.
+- For multi-device setups, treat Notion as the cross-device coordination layer in v1. Each device throttles its own queue, coalesces writes before sending, and pulls after confirmed writes so other devices converge through Notion.
+- A later LAN/Tailscale coordinator election can centralize rate limiting if real usage shows two independent device queues hitting the same Notion connection too hard.
 
 Read strategy:
 
@@ -302,6 +317,15 @@ The app should expose a local control surface so agents can update it without sc
 - MCP server wrapper over the same commands.
 - Shared operation schema for both.
 - Local auth token stored in Keychain and shown/copyable from Settings.
+
+Multi-device topology:
+
+- On MacBook: agents connect to the MacBook app endpoint.
+- On Mac Mini: agents connect to the Mac Mini app endpoint.
+- Both endpoints expose the same command schema and write to the same Notion workspace/root page when configured with the same Notion connection.
+- Agents do not need to know whether another device exists; they report local state to their nearest coordinator.
+- The app can later expose an optional Tailscale/LAN endpoint for remote agents, but v1 should not require cross-device RPC because Notion already provides durable convergence.
+- The UI should show which device last updated a record and whether that record is pending, confirmed, conflicted, or blocked.
 
 Initial commands:
 
