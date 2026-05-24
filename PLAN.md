@@ -410,12 +410,28 @@ Status as of 2026-05-24:
 - Rate-limit and validation handling.
 - Measure sustained write volume before enabling broad agent-driven updates.
 
+Status as of 2026-05-24:
+
+- Implemented Keychain-backed Notion token storage and Settings fields for the parent page, API version, and data source IDs.
+- Implemented a Notion client for the current data source API version, including schema creation under a supplied parent page, data source queries, page creates/updates, page trashing, and Retry-After handling.
+- Added a persisted local outbox to workspace.json. App edits enqueue Notion operations, coalesce repeated upserts for the same record, and only mark operations done after Notion confirms the write.
+- Added pull and push actions in Settings. Pull treats Notion as authoritative; push uses a conservative one-request-per-second writer to stay below Notion's shared average rate limit.
+- Live Notion writes were not run during implementation; the app now has the code path, but real workspace mutation should happen through the Settings UI with Ethan's selected parent page/token.
+
 ### Phase 3: Agent control surface
 
 - Local HTTP endpoint.
 - MCP wrapper.
 - Operation IDs and dedupe.
 - Hook health/status UI.
+
+Status as of 2026-05-24:
+
+- Implemented the localhost HTTP surface at http://127.0.0.1:17391 with bearer-token auth generated into Keychain.
+- Implemented GET /health, GET /v1/status, and POST /v1/agent-events.
+- Agent event writes dedupe by operationId, upsert project/agent/task/follow-up records, and feed the same Notion outbox as manual UI edits.
+- Verified the launched app served /health successfully.
+- The endpoint is MCP-style JSON HTTP now. A formal MCP wrapper/manifest remains a next slice.
 
 ### Phase 4: Claude Code/OpenClaw hooks
 

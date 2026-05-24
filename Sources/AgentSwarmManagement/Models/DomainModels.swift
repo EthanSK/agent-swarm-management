@@ -25,6 +25,25 @@ enum SwarmStatus: String, CaseIterable, Codable, Identifiable, Sendable {
         case .done: "checkmark.seal"
         }
     }
+
+    init(apiValue: String?) {
+        let normalized = (apiValue ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        switch normalized {
+        case "healthy", "running", "active", "open":
+            self = .healthy
+        case "needsattention", "needs attention", "attention", "waiting", "pending":
+            self = .needsAttention
+        case "blocked", "failed", "error":
+            self = .blocked
+        case "done", "complete", "completed", "closed":
+            self = .done
+        default:
+            self = .needsAttention
+        }
+    }
 }
 
 struct SwarmProject: Identifiable, Codable, Hashable, Sendable {
@@ -36,6 +55,8 @@ struct SwarmProject: Identifiable, Codable, Hashable, Sendable {
     var openTaskCount: Int
     var followUpCount: Int
     var lastMeaningfulChange: Date
+    var sourcePageId: String? = nil
+    var lastUpdatedBy: String? = nil
 }
 
 struct SwarmAgent: Identifiable, Codable, Hashable, Sendable {
@@ -45,6 +66,8 @@ struct SwarmAgent: Identifiable, Codable, Hashable, Sendable {
     var status: SwarmStatus
     var projectIds: [UUID]
     var lastUpdate: Date
+    var sourcePageId: String? = nil
+    var lastUpdatedBy: String? = nil
 }
 
 struct SwarmTask: Identifiable, Codable, Hashable, Sendable {
@@ -55,6 +78,8 @@ struct SwarmTask: Identifiable, Codable, Hashable, Sendable {
     var assignedAgentIds: [UUID]
     var parentTaskId: UUID?
     var sourcePageId: String?
+    var sourceTurnId: String? = nil
+    var lastUpdatedBy: String? = nil
 }
 
 struct FollowUp: Identifiable, Codable, Hashable, Sendable {
@@ -65,6 +90,8 @@ struct FollowUp: Identifiable, Codable, Hashable, Sendable {
     var status: SwarmStatus
     var createdAt: Date
     var sourceTurnId: String?
+    var sourcePageId: String? = nil
+    var lastUpdatedBy: String? = nil
 }
 
 struct Artifact: Identifiable, Codable, Hashable, Sendable {
@@ -74,5 +101,6 @@ struct Artifact: Identifiable, Codable, Hashable, Sendable {
     var url: URL?
     var kind: String
     var createdAt: Date
+    var sourcePageId: String? = nil
+    var lastUpdatedBy: String? = nil
 }
-
