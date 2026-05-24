@@ -258,12 +258,14 @@ actor NotionClient {
             guard let projectId = UUID(uuidString: richText(properties, "Project ID")) else {
                 return nil
             }
+            let question = richText(properties, "Question").emptyToNil
+                ?? title(properties, "Name")
 
             return FollowUp(
                 id: localId(from: page, properties: properties),
                 projectId: projectId,
                 agentId: UUID(uuidString: richText(properties, "Agent ID")),
-                question: richText(properties, "Question").emptyToNil ?? title(properties, "Name"),
+                question: question,
                 status: SwarmStatus(apiValue: selectName(properties, "Status")),
                 createdAt: date(properties, "Created At") ?? page.lastEditedTime ?? .now,
                 sourceTurnId: richText(properties, "Source Turn ID").emptyToNil,
