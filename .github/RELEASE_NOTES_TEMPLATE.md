@@ -8,5 +8,4 @@
 
 - Sparkle reads `appcast.xml` from the latest GitHub release.
 - The appcast and update archive must be signed with the Sparkle EdDSA key whose public half is embedded in `Resources/Info.plist.template`.
-- GitHub Actions secret required: `SPARKLE_PRIVATE_KEY`.
-
+- GitHub Actions skips release/appcast publishing until the Sparkle, Developer ID signing, and Apple notarization secrets are all configured.

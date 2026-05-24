@@ -97,6 +97,7 @@ Real public updates require GitHub Actions secrets:
 - APPLE_TEAM_ID
 
 Local ad-hoc builds can launch and be tested, but real user updates should be Developer ID signed, notarized, and appcast-signed.
+When those release secrets are absent, GitHub Actions still builds and uploads desktop artifacts, then skips GitHub Release/appcast publishing cleanly.
 
 ## Development
 

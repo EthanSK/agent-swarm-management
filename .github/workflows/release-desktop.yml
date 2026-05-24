@@ -195,16 +195,90 @@ jobs:
             release/Agent-Swarm-Management-latest-mac-universal.zip.sha256
           if-no-files-found: error
 
+  release-readiness:
+    name: Check release publishing secrets
+    needs: compute-version
+    runs-on: ubuntu-latest
+    outputs:
+      can_publish: ${{ steps.check.outputs.can_publish }}
+      missing_secrets: ${{ steps.check.outputs.missing_secrets }}
+    steps:
+      - name: Check release publishing secrets
+        id: check
+        shell: bash
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for secret_name in SPARKLE_PRIVATE_KEY CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!secret_name}" ]; then
+              missing+=("$secret_name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            joined=""
+            for secret_name in "${missing[@]}"; do
+              if [ -n "$joined" ]; then
+                joined+=", "
+              fi
+              joined+="$secret_name"
+            done
+            echo "can_publish=false" >> "$GITHUB_OUTPUT"
+            echo "missing_secrets=$joined" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Release publish skipped::Missing GitHub Actions secrets: $joined"
+            exit 0
+          fi
+
+          echo "can_publish=true" >> "$GITHUB_OUTPUT"
+          echo "missing_secrets=" >> "$GITHUB_OUTPUT"
+
+  publish-skipped:
+    name: Publish skipped
+    if: |
+      always() &&
+      needs.compute-version.result == 'success' &&
+      needs.build-desktop.result == 'success' &&
+      needs.release-readiness.result == 'success' &&
+      needs.release-readiness.outputs.can_publish != 'true' &&
+      (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs:
+      - compute-version
+      - build-desktop
+      - release-readiness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped publish
+        shell: bash
+        run: |
+          {
+            echo "## Release publish skipped"
+            echo
+            echo "The desktop build artifacts were created, but GitHub Release/appcast publishing is disabled until all release secrets are configured."
+            echo
+            echo "Missing secrets: ${{ needs.release-readiness.outputs.missing_secrets }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish-release:
     name: Publish release
     if: |
       always() &&
       needs.compute-version.result == 'success' &&
       needs.build-desktop.result == 'success' &&
+      needs.release-readiness.result == 'success' &&
+      needs.release-readiness.outputs.can_publish == 'true' &&
       (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     needs:
       - compute-version
       - build-desktop
+      - release-readiness
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
