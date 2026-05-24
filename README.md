@@ -103,8 +103,13 @@ Developer ID signed, notarized, and appcast-signed before users rely on them.
 ## Credentials
 
 The local agent endpoint does not require a user credential and does not use
-Keychain. Notion is different: because Notion is the user-owned source of truth,
-the app must eventually receive Notion authorization from the user. Local/dev
-builds support a manually pasted Notion token stored in Keychain; public builds
-should use a proper Notion OAuth flow so users authorize in Notion instead of
-handling raw tokens.
+Keychain. The app also avoids passive Keychain reads during launch and Settings
+rendering, so users should not see a "confidential information" prompt just
+because the app opened.
+
+Notion is different: because Notion is the user-owned source of truth, the app
+must eventually receive Notion authorization from the user. Local/dev builds
+support a manually pasted Notion token stored in Keychain; public builds should
+use a proper Notion OAuth flow so users authorize in Notion instead of handling
+raw tokens. Keychain access should happen only after the user explicitly saves a
+token or clicks a Notion action.

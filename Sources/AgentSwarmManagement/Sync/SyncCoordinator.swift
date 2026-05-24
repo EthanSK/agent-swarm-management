@@ -6,6 +6,7 @@ final class SyncCoordinator: ObservableObject {
     @Published private(set) var isWorking = false
     @Published private(set) var statusLine = "Notion sync not configured"
     @Published private(set) var lastError: String?
+    @Published private(set) var notionCredentialStatus = "Not connected"
 
     private let tokenStore: KeychainTokenStore
     private let syncEngine: SyncEngine
@@ -15,34 +16,17 @@ final class SyncCoordinator: ObservableObject {
         self.syncEngine = syncEngine
     }
 
-    func hasNotionToken() -> Bool {
-        guard let token = try? tokenStore.read(.notionAPI) else {
-            return false
-        }
-        return !token.isEmpty
-    }
-
-    func notionTokenPreview() -> String {
-        guard let token = try? tokenStore.read(.notionAPI), !token.isEmpty else {
-            return "No token saved"
-        }
-
-        if token.count <= 10 {
-            return "Saved"
-        }
-
-        return "\(token.prefix(6))...\(token.suffix(4))"
-    }
-
     func saveNotionToken(_ token: String) {
         do {
             let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
                 try tokenStore.delete(.notionAPI)
                 statusLine = "Notion token removed"
+                notionCredentialStatus = "Not connected"
             } else {
                 try tokenStore.save(trimmed, account: .notionAPI)
                 statusLine = "Notion token saved in Keychain"
+                notionCredentialStatus = "Saved in Keychain"
             }
             lastError = nil
         } catch {
@@ -133,8 +117,10 @@ final class SyncCoordinator: ObservableObject {
 
     private func notionClient(settings: AppSettings) throws -> NotionClient {
         guard let token = try tokenStore.read(.notionAPI), !token.isEmpty else {
+            notionCredentialStatus = "Not connected"
             throw NotionAPIError.missingToken
         }
+        notionCredentialStatus = "Saved in Keychain"
 
         return NotionClient(
             configuration: NotionClientConfiguration(

@@ -23,7 +23,7 @@ struct SettingsView: View {
         Form {
             Section("Notion") {
                 SecureField("API token", text: $notionToken)
-                LabeledContent("Saved Notion token", value: syncCoordinator.notionTokenPreview())
+                LabeledContent("Notion authorization", value: syncCoordinator.notionCredentialStatus)
                 TextField("Parent page ID or URL", text: $notionRootPage)
                 TextField("API version", text: $notionVersion)
 

@@ -458,6 +458,7 @@ Status as of 2026-05-24:
 - Investigated the 2026-05-24 launch crash. Root cause was a packaged app missing the Sparkle runtime framework/rpath at launch (dyld: Library not loaded: @rpath/Sparkle.framework/Versions/B/Sparkle). The build now verifies the embedded framework and @executable_path/../Frameworks rpath before it can pass.
 - Added a local launch smoke script that opens the packaged app, checks the /health endpoint, and fails if a new crash report appears.
 - Removed Keychain usage for the generated local control endpoint token after launch prompted for credentials in local testing. That token is now stored as a private app-support file; Keychain remains reserved for actual Notion auth material until public OAuth replaces manual token setup.
+- Removed passive Keychain reads from Settings rendering. The app no longer reads the Notion token just to display a preview, because a restored Settings window could otherwise trigger a scary first-launch "confidential information" prompt. Keychain access now happens only after explicit Notion actions such as saving a token, creating data sources, pulling, or pushing.
 
 ### Phase 6: iOS and public distribution
 
