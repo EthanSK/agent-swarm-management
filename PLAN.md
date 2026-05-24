@@ -16,7 +16,7 @@ The first useful version should answer four questions quickly:
 - What needs Ethan's attention or approval?
 - What changed since Ethan last looked?
 
-The long-term product can grow into iOS and deeper agent orchestration, but v1 should stay sharply focused: a native Mac menu bar app that expands into a full window, backed by Notion as the human-readable source of truth.
+The long-term product can grow into iOS and deeper agent orchestration, but v1 should stay sharply focused: a native Mac menu bar app that expands into a full window, backed by a local canonical store and mirrored into Notion for human-readable review.
 
 ## Source Context
 
@@ -52,9 +52,20 @@ The same data should be visible in different slices:
 - Follow-up view: everything waiting on Ethan, grouped by urgency/project/agent.
 - Task view: plain todo list mode for quick scanning and edits.
 
-## Notion Model
+## Source Of Truth And Notion Model
 
-Use Notion as v1 source of truth because Ethan already thinks in Notion pages and wants open-source/local tooling rather than a hosted SaaS dependency.
+Use the local app database as the operational source of truth. Ethan already thinks in Notion pages, so Notion should stay in the system as the human-readable planning, digest, and occasional import/edit surface, but it should not be the live state store for agent heartbeats or frequent per-row churn.
+
+The practical constraint is write granularity. Notion can query databases in pages of up to 100 records and append up to 100 blocks to one parent, but updating the status of 50 agent/task rows is still 50 separate PATCH /v1/pages/{id} calls. There is no multi-page batch write endpoint. Because each integration also shares the same rate limit pool across machines, all Notion writes should go through one coordinator in the Mac app rather than direct writes from every agent hook.
+
+Pure Notion remains acceptable only for a deliberately low-volume mode:
+
+- Sustained writes stay comfortably below about 30 updates per minute.
+- Agents emit only meaningful state transitions, not heartbeat spam.
+- The app owns a client-side queue, backoff, and retry policy.
+- Repeated updates to the same record are coalesced before hitting Notion.
+
+If measured write volume goes materially above that, use a hybrid model: local SQLite/GRDB for the Mac app, Firestore or another real-time store only when remote multi-device live state is required, and Notion as a periodic curated digest mirror.
 
 Recommended Notion layout:
 
@@ -73,6 +84,7 @@ Pragmatic v1:
 - Avoid requiring a board view on day one.
 - Store enough relation IDs to create project <-> agent many-to-many views.
 - Let the native app cache and index Notion content locally for speed.
+- Prefer updating one summary/digest page per sync cycle before attempting high-churn per-row mirroring.
 
 Tasks can be recursive Notion pages, but the app should normalize them into a stable local model:
 
@@ -118,7 +130,7 @@ The sync layer should be queue-first, not "write immediately from every UI event
 
 Local state:
 
-- Store normalized records locally.
+- Store normalized records locally as canonical state.
 - Keep a source Notion page/database ID for each record.
 - Track local dirty changes separately from remote state.
 - Track last successful sync timestamp and last remote edit timestamp.
@@ -127,9 +139,11 @@ Write queue:
 
 - Coalesce repeated changes to the same record.
 - Respect Notion's average three requests per second.
+- Cap ordinary Notion mirror writes well below the limit, targeting roughly one request per second unless the user explicitly starts a sync.
 - On HTTP 429, pause that connection using Retry-After.
 - On validation errors, mark the specific item as blocked and show it in Follow-ups/Sync Issues.
 - Use idempotency-style local operation IDs so a failed/retried hook update does not create duplicate tasks.
+- Route all Notion writes through the app coordinator so the rate limiter sees the full machine/agent workload.
 
 Read strategy:
 
@@ -141,7 +155,7 @@ Read strategy:
 Conflict policy:
 
 - If only one side changed, apply it.
-- If both sides changed, keep both versions and create a Follow-up requiring user choice.
+- If both sides changed, keep the local operational record, preserve the Notion-authored value, and create a Follow-up requiring user choice.
 - Never silently overwrite user-authored Notion edits with stale agent data.
 
 ## Native macOS Architecture
@@ -154,7 +168,7 @@ Use SwiftUI for the app shell and shared views:
 - App state through ObservableObject or Observation.
 - Keychain for Notion tokens.
 - URLSession for Notion API and local MCP/HTTP server calls.
-- Local persistence can start as JSON/SQLite, then graduate to SwiftData if it helps.
+- Local persistence starts as JSON for the first scaffold, but should move to SQLite/GRDB before real agent hooks or Notion sync become high-volume. SwiftData can wait until it clearly removes more complexity than it adds.
 
 Suggested modules:
 
@@ -331,13 +345,16 @@ Status as of 2026-05-24:
 - The app seeds recovered sample data, persists to `~/Library/Application Support/AgentSwarmManagement/workspace.json`, and exposes manual create/edit/delete flows for projects, agents, tasks, and follow-ups.
 - Tasks and follow-ups have context-menu status updates; project counters are recomputed from local records.
 
-### Phase 2: Notion integration
+### Phase 2: Local database and Notion mirror
 
+- Migrate JSON persistence to SQLite/GRDB.
 - Token onboarding via Keychain.
 - Root page/schema detection.
 - Pull Notion records.
-- Push local changes through queued sync.
+- Push selected local changes through queued sync.
+- Update a curated Notion summary/digest page on a timer or significant event.
 - Rate-limit and validation handling.
+- Measure sustained write volume before enabling broad per-row Notion mirroring.
 
 ### Phase 3: Agent control surface
 
@@ -373,7 +390,8 @@ Status as of 2026-05-24:
 
 - Build native Mac first in SwiftUI.
 - Keep v1 list/detail, not board-first.
-- Use Notion as source of truth, but cache locally.
+- Use the local database as source of truth; mirror Notion for human-readable digests and low-volume manual review.
+- Keep Firestore out of v1 unless measured write volume or remote live-dashboard requirements demand it.
 - Use a local HTTP/MCP endpoint for agent writes.
 - Make Follow-ups a top-level view.
 - Avoid public OAuth until there is a tiny broker.

@@ -2,7 +2,9 @@
 
 Native macOS command center for tracking agent-driven projects, tasks, follow-ups, and proof.
 
-This repo currently contains the first planning pass and a local-first SwiftUI scaffold. The app seeds recovered sample data on first launch, writes edits to JSON, and keeps Notion sync plus the MCP control surface behind typed seams for later phases.
+This repo currently contains the first planning pass and a local-first SwiftUI scaffold. The app seeds recovered sample data on first launch, writes edits to JSON, and keeps Notion mirroring plus the MCP control surface behind typed seams for later phases.
+
+The architecture is intentionally local-first: the Mac app owns canonical live state, while Notion is a human-readable digest/mirror unless measured write volume proves pure Notion is still comfortably low-volume.
 
 ## Current Scope
 
