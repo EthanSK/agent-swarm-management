@@ -50,7 +50,7 @@ struct SettingsView: View {
                 .font(.headline)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("OAuth is the right public setup flow. This alpha keeps manual Notion integration tokens as the advanced fallback until the OAuth broker/release-signing path is added.")
+                    Text("Public releases should use OAuth. For this alpha, paste a Notion integration token and parent page, then create the workspace databases.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -66,7 +66,7 @@ struct SettingsView: View {
             labeledSecureField(
                 "Manual integration token",
                 text: $notionToken,
-                prompt: "Paste a Notion internal integration token for this alpha"
+                prompt: "Paste a Notion integration token"
             )
 
             labeledTextField(
@@ -81,7 +81,7 @@ struct SettingsView: View {
                     syncCoordinator.saveNotionToken(notionToken)
                     notionToken = ""
                 } label: {
-                    Label("Save Manual Setup", systemImage: "key")
+                    Label("Save Token", systemImage: "key")
                 }
 
                 Button {
@@ -90,7 +90,7 @@ struct SettingsView: View {
                     saveSettings()
                     Task { await syncCoordinator.createWorkspaceSchema(in: store) }
                 } label: {
-                    Label("Create Notion Databases", systemImage: "plus.rectangle.on.folder")
+                    Label("Create Workspace Databases", systemImage: "plus.rectangle.on.folder")
                 }
                 .disabled(syncCoordinator.isWorking)
             }

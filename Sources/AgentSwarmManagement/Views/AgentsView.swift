@@ -5,7 +5,6 @@ struct AgentsView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var controlServer: LocalControlServer
 
-    @State private var selectedHarness: HarnessFamily = .openClaw
     @State private var isShowingSetup = false
     @State private var installResult: String?
     @State private var installError: String?
@@ -13,13 +12,6 @@ struct AgentsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                Picker("Setup target", selection: $selectedHarness) {
-                    ForEach(HarnessFamily.allCases) { family in
-                        Text(family.title).tag(family)
-                    }
-                }
-                .frame(width: 220)
-
                 Button {
                     isShowingSetup = true
                 } label: {
@@ -30,7 +22,7 @@ struct AgentsView: View {
                 Button {
                     copySetupJSON()
                 } label: {
-                    Label("Copy Setup JSON", systemImage: "doc.on.doc")
+                    Label("Copy Endpoint JSON", systemImage: "doc.on.doc")
                 }
 
                 Spacer()
@@ -51,6 +43,8 @@ struct AgentsView: View {
                     .padding(.bottom, 8)
             }
 
+            // Agent rows are self-reported by harnesses; the setup UI only installs
+            // the instructions a harness needs to register itself through the endpoint.
             List(store.agents) { agent in
                 AgentRow(
                     agent: agent,
@@ -73,11 +67,10 @@ struct AgentsView: View {
         .navigationTitle("Agents")
         .sheet(isPresented: $isShowingSetup) {
             AgentSetupView(
-                family: selectedHarness,
                 baseURL: controlServer.endpointURL,
-                onInstall: { installSkill(for: selectedHarness) },
+                onInstall: installSkill,
                 onCopySetup: copySetupJSON,
-                onCopySkill: { copySkill(for: selectedHarness) }
+                onCopySkill: copySkill
             )
         }
     }
@@ -137,6 +130,7 @@ struct AgentsView: View {
         NSPasteboard.general.setString(text, forType: .string)
     }
 }
+
 private struct AgentRow: View {
     var agent: SwarmAgent
     @ObservedObject var store: WorkspaceStore
@@ -212,52 +206,58 @@ private struct AgentRow: View {
 private struct AgentSetupView: View {
     @Environment(\.dismiss) private var dismiss
 
-    var family: HarnessFamily
     var baseURL: URL
-    var onInstall: () -> Void
+    var onInstall: (HarnessFamily) -> Void
     var onCopySetup: () -> Void
-    var onCopySkill: () -> Void
+    var onCopySkill: (HarnessFamily) -> Void
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Setup target") {
-                    LabeledContent("Harness family", value: family.title)
-                    LabeledContent("Skill path", value: family.installLocationHint)
-                    LabeledContent("Endpoint", value: baseURL.absoluteString)
-                    LabeledContent("MCP", value: baseURL.appendingPathComponent("mcp").absoluteString)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    // Keep the endpoint contract visible before harness-specific cards so
+                    // users understand that any compatible agent can integrate.
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label(baseURL.absoluteString, systemImage: "point.3.connected.trianglepath.dotted")
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
 
-                Section("Actions") {
-                    Button {
-                        onInstall()
-                        dismiss()
+                            Label(baseURL.appendingPathComponent("mcp").absoluteString, systemImage: "server.rack")
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+
+                            Button {
+                                onCopySetup()
+                            } label: {
+                                Label("Copy Full Endpoint JSON", systemImage: "doc.on.doc")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     } label: {
-                        Label("Install/Reinstall Local Skill", systemImage: "arrow.down.circle")
-                    }
-                    .disabled(family == .generic)
-
-                    Button {
-                        onCopySetup()
-                    } label: {
-                        Label("Copy Setup JSON", systemImage: "doc.on.doc")
+                        Label("Local Endpoint", systemImage: "network")
                     }
 
-                    Button {
-                        onCopySkill()
+                    ForEach(HarnessFamily.allCases) { family in
+                        HarnessSetupCard(
+                            family: family,
+                            onInstall: { onInstall(family) },
+                            onCopySkill: { onCopySkill(family) }
+                        )
+                    }
+
+                    GroupBox {
+                        Text("Agents appear here after they register through POST /v1/agents/register or MCP tool agent_swarm_register. Project/task/follow-up rows should come from reported agent work, not manual agent setup.")
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } label: {
-                        Label("Copy Skill Instructions", systemImage: "puzzlepiece.extension")
+                        Label("Registration Contract", systemImage: "curlybraces")
                     }
                 }
-
-                Section("Runtime contract") {
-                    Text("Register through POST /v1/agents/register or MCP tool agent_swarm_register. Report work through POST /v1/agent-events or MCP tool agent_swarm_report_event.")
-                        .textSelection(.enabled)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                .padding(24)
             }
-            .formStyle(.grouped)
             .navigationTitle("Set Up Agent")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -265,6 +265,55 @@ private struct AgentSetupView: View {
                 }
             }
         }
-        .frame(width: 720, height: 640)
+        .frame(width: 760, height: 720)
+    }
+}
+
+private struct HarnessSetupCard: View {
+    var family: HarnessFamily
+    var onInstall: () -> Void
+    var onCopySkill: () -> Void
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(family.title)
+                            .font(.headline)
+                        Text(family.description)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer()
+
+                    Text(family.slug)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+
+                Label(family.installLocationHint, systemImage: "folder")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+
+                HStack(spacing: 10) {
+                    Button {
+                        onInstall()
+                    } label: {
+                        Label("Install/Reinstall Skill", systemImage: "arrow.down.circle")
+                    }
+                    .disabled(family == .generic)
+
+                    Button {
+                        onCopySkill()
+                    } label: {
+                        Label(family == .generic ? "Copy Integration Instructions" : "Copy Skill Instructions", systemImage: "doc.on.doc")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }

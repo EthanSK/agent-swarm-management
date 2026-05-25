@@ -76,7 +76,7 @@ private struct NotionSetupBanner: View {
             Spacer()
 
             SettingsLink {
-                Label("Open Settings", systemImage: "gearshape")
+                Label("Set Up Notion", systemImage: "square.stack.3d.up")
             }
         }
         .padding(.horizontal)
@@ -84,4 +84,3 @@ private struct NotionSetupBanner: View {
         .background(.yellow.opacity(0.12))
     }
 }
-

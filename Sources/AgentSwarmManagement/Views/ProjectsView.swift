@@ -2,9 +2,10 @@ import SwiftUI
 
 struct ProjectsView: View {
     @ObservedObject var store: WorkspaceStore
-    @State private var editingProject: SwarmProject?
 
     var body: some View {
+        // Projects are created by reported agent work rather than a primary manual
+        // form, which keeps the app centered on agent-state collection.
         List(store.projects) { project in
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -28,13 +29,6 @@ struct ProjectsView: View {
             }
             .padding(.vertical, 8)
             .contentShape(Rectangle())
-            .contextMenu {
-                Button {
-                    editingProject = project
-                } label: {
-                    Label("Edit Project", systemImage: "pencil")
-                }
-            }
         }
         .navigationTitle("Projects")
         .overlay {
@@ -44,11 +38,6 @@ struct ProjectsView: View {
                     systemImage: "folder.badge.gearshape",
                     description: Text("Projects appear when registered agents report real work.")
                 )
-            }
-        }
-        .sheet(item: $editingProject) { project in
-            ProjectEditorView(project: project, agents: store.agents) { updatedProject in
-                store.upsertProject(updatedProject)
             }
         }
     }
